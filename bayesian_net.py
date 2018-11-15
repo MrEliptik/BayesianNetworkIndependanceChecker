@@ -4,6 +4,7 @@ class Variable:
     def __init__(self, name, parents):
         self.name = name
         self.parents = parents
+        self.visited = False
 
     def __str__(self):
         return "Variale : " + self.name + " Parents : " + str(self.parents)
@@ -24,9 +25,74 @@ class Query:
             z_str += c
         return "Query : " + x_str + ";" + y_str + "|" + z_str
 
-    def compute(self):
-        
+    def compute(self, graph):
+        # True by default, if one path is correct then False
+        value = True
+        for x in self.x:
+            # Works only for case with direct path
+            paths = find_all_paths(graph.graph, x, self.y)   
+            print(paths)    
+            # no path between x and y 
+            if(not paths):
+                # no z value
+                if(not self.z):   
+                    for var in graph.variables:
+                        # same parent
+                        if(x in graph.graph[var.name] and self.y in graph.graph[var.name]):
+                            return False
+                    # not same parent
+                    return True
+                # z is parent of x and y
+                elif(x in graph.graph[self.z] and self.y in graph.graph[self.z]):
+                    return True
+                # y or x is parent of z
+                elif(self.z in graph.graph[self.y] or self.z in graph.graph[x]):
+                    return False
+                # z is parent of x or y
+                elif(x in graph.graph[self.z] or self.y in graph.graph[self.z]):
+                    return False
+                else:
+                    return False
+            for path in paths:
+                # Look if Z is in the path
+                # Removing starting and ending point
+                if(not self.z in path[1:-1]):
+                    return False
         return value
+
+class Graph():
+    def __init__(self, variables):
+        self.variables = variables
+        self.graph = {}
+        self.createGraph()
+
+    def createGraph(self):
+        for var in self.variables:
+            for parent in var.parents:
+                if(not (parent in self.graph)):
+                    self.graph[parent] = [var.name]
+                else:
+                    self.graph[parent].append(var.name)
+        for var in self.variables:
+            if(not (var.name in self.graph)):
+                self.graph[var.name] = []
+
+    def __str__(self):
+        return str(self.graph)
+
+def find_all_paths(graph, start, end, path=[]):
+    path = path + [start]
+    if start == end:
+        return [path]
+    if not start in graph:
+        return []
+    paths = []
+    for node in graph[start]:
+        if node not in path:
+            newpaths = find_all_paths(graph, node, end, path)
+            for newpath in newpaths:
+                paths.append(newpath)
+    return paths
 
 def main():
     f = open("example.txt", "r") 
@@ -36,6 +102,8 @@ def main():
     nb_nodes, nb_queries = re.split(' ', lines[0])
     nb_nodes = int(nb_nodes)
     nb_queries = int(nb_queries)
+
+    graph = {}
     variables = []
     queries = []
     results = [] 
@@ -58,7 +126,8 @@ def main():
         # Create corresponding object
         obj = Variable(var, parents)
         variables.append(obj)
-        #print(obj)
+    graph = Graph(variables)
+    print(graph)
 
     # Get queries
     # Goes through each lines
@@ -86,10 +155,13 @@ def main():
     for res in results:
         print(res)
 
+    print("")
     # Compute results
-    for query in queries:
-        print(query.compute())
-
+    for i, query in enumerate(queries):
+        print(query)
+        print(query.compute(graph))
+        print(results[i])
+        print("")
    
 
 if __name__ == '__main__':
