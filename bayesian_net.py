@@ -1,4 +1,5 @@
 import re
+import copy
 
 class Variable:
     def __init__(self, name, parents):
@@ -29,42 +30,57 @@ class Query:
         # True by default, if one path is correct then False
         value = True
         for x in self.x:
-            # Works only for case with direct path
-            paths = find_all_paths(graph.graph, x, self.y)   
-            print(paths)    
-            # no path between x and y 
-            if(not paths):
-                # no z value
-                if(not self.z):   
-                    for var in graph.variables:
-                        # same parent
-                        if(x in graph.graph[var.name] and self.y in graph.graph[var.name]):
-                            return False
-                    # not same parent
-                    return True
-                # z is parent of x and y
-                elif(x in graph.graph[self.z] and self.y in graph.graph[self.z]):
-                    return True
-                # y or x is parent of z
-                elif(self.z in graph.graph[self.y] or self.z in graph.graph[x]):
-                    return False
-                # z is parent of x or y
-                elif(x in graph.graph[self.z] or self.y in graph.graph[self.z]):
-                    return False
-                else:
-                    return False
-            for path in paths:
-                # Look if Z is in the path
-                # Removing starting and ending point
-                if(not self.z in path[1:-1]):
-                    return False
+            all_paths = find_all_paths(graph.undirected_graph, x, self.y)   
+            direct_paths = find_all_paths(graph.graph, x, self.y)
+            print(all_paths)  
+
+            # There is a path between x and y
+            if(not (not all_paths)):
+                for path in all_paths:
+                    # Take a triplet
+                    if(len(path) > 3):
+                        active = 0
+                        for i in range(0, len(path) - 3):
+                            triplet = (path[i], path[i+1], path[i+2])
+                            # Check if active
+                            if(isActive(triplet, graph,self.z)):
+                                active += 1
+                        # If every triplets is active, path is active
+                        if(active == len(path)):
+                            return False  
+                    # The whole path is a triplet
+                    else:                       
+                        if(isActive(path, graph, self.z)):
+                            return False     
         return value
+
+def isActive(triplet, graph, z=[]):
+    # Common effect
+    if(triplet[1] in graph.graph[triplet[0]] and triplet[1] in graph.graph[triplet[2]] 
+        and (z == triplet[1] or z in graph.graph[triplet[1]])
+    ):
+        return True
+    # Causal chain
+    elif(triplet[1] in graph.graph[triplet[0]] and triplet[2] in graph.graph[triplet[1]]
+         and (not z or triplet[1] != z)
+    ):
+        return True
+    # Common cause
+    elif(triplet[0] in graph.graph[triplet[1]] and triplet[2] in graph.graph[triplet[1]] 
+        and (not z or triplet[1] != z)
+    ):
+        return True  
+    # No active path
+    else:
+        return False
 
 class Graph():
     def __init__(self, variables):
         self.variables = variables
         self.graph = {}
+        self.undirected_graph = {}
         self.createGraph()
+        self.createUndirectedGraph()
 
     def createGraph(self):
         for var in self.variables:
@@ -77,8 +93,18 @@ class Graph():
             if(not (var.name in self.graph)):
                 self.graph[var.name] = []
 
+    def createUndirectedGraph(self):
+        self.undirected_graph = copy.deepcopy(self.graph)
+        for var in self.variables:
+            nodes = self.graph[var.name]
+            for node in nodes:
+                if(node in self.undirected_graph):
+                    self.undirected_graph[node].append(var.name)  
+
     def __str__(self):
-        return str(self.graph)
+        return "Directed graph : " + str(self.graph) \
+                + "\n" + \
+                "Undirected graph : " + str(self.undirected_graph)
 
 def find_all_paths(graph, start, end, path=[]):
     path = path + [start]
@@ -97,8 +123,6 @@ def find_all_paths(graph, start, end, path=[]):
 def main():
     f = open("example.txt", "r") 
     lines = f.readlines()
-    for line in lines:
-        print(line.strip())
     nb_nodes, nb_queries = re.split(' ', lines[0])
     nb_nodes = int(nb_nodes)
     nb_queries = int(nb_queries)
@@ -137,25 +161,13 @@ def main():
         x = re.split(' ', x.strip())
         rest = re.sub(' ', '', rest).strip()
         y, z = re.split(r'\|', rest)
-        #print(x, y, z)
         query = Query(x, y, z)
         queries.append(query)
-        #print(query)
 
     # Get results
     for i in range(1+nb_nodes+nb_queries, nb_nodes+nb_queries+nb_queries+1):
         results.append(lines[i].strip())
-    
-    for var in variables:
-        print(var)
 
-    for query in queries:
-        print(query)
-    
-    for res in results:
-        print(res)
-
-    print("")
     # Compute results
     for i, query in enumerate(queries):
         print(query)
